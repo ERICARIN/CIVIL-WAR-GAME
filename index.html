@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Гражданская война</title>
+<link rel="icon" href="icon.png" type="image/png" sizes="16x16">
+<style>
+  link[rel="icon"] {
+    image-rendering: pixelated;
+  }
+</style>
+<link rel="stylesheet" href="styles.css">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- UI панели -->
+<div id="player-menu" class="window-panel" style="left:50%; bottom: 10px; transform:translateX(-50%); width: auto; min-width: 300px; min-height: 0; overflow:visible; display: none;">
+    <div class="window-header"><span class="window-title">Меню игрока</span><span class="collapse-toggle expanded"></span></div>
+    <div class="window-content" style="padding: 0;">
+        <div id="player-menu-tabs" style="display:flex; gap:4px; padding: 8px 8px 0 8px; border-bottom: 1px solid var(--border);">
+            <button class="tabbtn pixel-btn active" data-tab="dossier">Досье</button>
+            <button class="tabbtn pixel-btn" data-tab="inventory">Инвентарь</button>
+            <button class="tabbtn pixel-btn" data-tab="squad">Отряд</button>
+            <button class="tabbtn pixel-btn" data-tab="contracts">Контракты</button>
+        </div>
+        <div id="player-menu-content" style="padding: 8px;">
+            <div id="tab-dossier" class="tab-content">
+                <div id="dossier-name" style="font-weight: bold; font-size: 16px;">Командир</div>
+                <div id="dossier-faction" style="font-size: 13px; opacity: 0.8;">Фракция: Зеленые <span class="dossier-color-box" style="width: 14px; height: 14px; background: #3ddc97; border: 1px solid var(--border); display: inline-block; vertical-align: middle; margin-left: 8px;"></span></div>
+            </div>
+            <div id="tab-inventory" class="tab-content" style="display:none; flex-wrap: wrap; gap:8px;">
+              <div class="inv-slot" data-key="squad" title="Отряд"><span class="icon pixel-emoji">👤</span><span class="cnt">1</span></div>
+              <div class="inv-slot" data-key="garrison" title="В гарнизоне"><span class="icon pixel-emoji">🏠</span><span class="cnt">0</span></div>
+              <div class="inv-slot draggable-item" data-key="money" title="Рубли (можно выбросить)" draggable="true"><span class="icon pixel-emoji">₽</span><span class="cnt">0</span></div>
+              <div class="inv-slot draggable-item" data-key="ammo" title="Патроны (можно выбросить)" draggable="true"><span class="icon pixel-emoji">🔫</span><span class="cnt">0</span></div>
+              <div class="inv-slot draggable-item" data-key="unit" title="Крест юнита (можно выбросить)" draggable="true"><span class="icon pixel-emoji">✚</span><span class="cnt">0</span></div>
+              <div class="inv-slot draggable-item" data-key="cmd" title="Крест командира (можно выбросить)" draggable="true"><span class="icon pixel-emoji" style="color:#ffd166">✚</span><span class="cnt">0</span></div>
+              <div class="inv-slot draggable-item" data-key="contract_paper" title="Контракт союза (можно выбросить)" draggable="true"><span class="icon pixel-emoji">📋</span><span class="cnt">0</span></div>
+            </div>
+            <div id="tab-squad" class="tab-content" style="display:none;">
+                <!-- Squad list will be rendered here -->
+            </div>
+            <div id="tab-contracts" class="tab-content" style="display:none;">
+                <div id="contracts-list"></div>
+            </div>
+        </div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<div id="panel" class="window-panel" style="right:8px; top:8px; width:280px; display: none;">
+    <div class="window-header"><span class="window-title">Чит-меню</span><span class="collapse-toggle expanded"></span></div>
+    <div class="window-content">
+        <div class="cheat-section">
+            <h5 class="collapsible expanded" title="Клик для спавна, драг-н-дроп для спавна в точке">Спавн</h5>
+            <div class="cheat-content">
+                <div id="faction-spawn-buttons" class="cheat-button-row"></div>
+                <div class="cheat-button-row">
+                    <button class="btn pixel-btn draggable-item" data-spawn="farmer" title="Крестьянин" draggable="true">👤</button>
+                </div>
+                <div class="cheat-button-row">
+                    <button class="btn pixel-btn draggable-item" data-spawn="house" title="Дом" draggable="true">🏠</button>
+                    <button class="btn pixel-btn draggable-item" data-spawn="shop" title="Лавка" draggable="true">🏪</button>
+                    <button class="btn pixel-btn draggable-item" data-spawn="kabak" title="Кабак" draggable="true">🍻</button>
+                </div>
+            </div>
+        </div>
+        <div class="cheat-section">
+            <h5 class="collapsible expanded" title="Клик для добавления в инвентарь, драг-н-дроп для спавна на земле">Инвентарь</h5>
+            <div class="cheat-content">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                    <button class="btn pixel-btn draggable-item" data-spawn="money_100" draggable="true">100₽</button>
+                    <button class="btn pixel-btn draggable-item" data-spawn="ammo" draggable="true">100<span class="pixel-emoji">🔫</span></button>
+                    <button class="btn pixel-btn draggable-item" data-spawn="unit_loot" draggable="true"><span class="pixel-emoji">✚</span></button>
+                    <button class="btn pixel-btn draggable-item" data-spawn="cmd_loot" style="color:#ffd166" draggable="true"><span class="pixel-emoji">✚</span></button>
+                    <button id="addUnitBtn" class="btn pixel-btn draggable-item" data-spawn="unit_add" title="Добавить юнита в отряд" draggable="true"><span class="pixel-emoji">👤</span></button>
+                    <button class="btn pixel-btn draggable-item" data-spawn="ally_contract" title="Создать союзника" draggable="true"><span class="pixel-emoji">📋</span></button>
+                </div>
+            </div>
+        </div>
+        <div class="cheat-section">
+            <h5 class="collapsible">Автоспавн</h5>
+            <div class="cheat-content">
+                 <div class="rowline"><span class="chip">Враги</span><input id="autoEnemy" class="slider" type="range" min="-10" max="10" value="0" step="1"><span id="autoEnemyVal" style="width:32px;text-align:right;font-size:12px;opacity:.8">0</span></div>
+                 <div class="rowline"><span class="chip">Крест.</span><input id="autoFarmer" class="slider" type="range" min="-10" max="10" value="0" step="1"><span id="autoFarmerVal" style="width:32px;text-align:right;font-size:12px;opacity:.8">0</span></div>
+            </div>
+        </div>
+        <div class="cheat-section">
+            <h5 class="collapsible">Мир</h5>
+            <div class="cheat-content">
+                <div class="rowline" style="justify-content: flex-start; gap: 16px;">
+                    <label class="checkbox-label"><input id="gridChk" type="checkbox" class="pixel-checkbox"/> Сетка</label>
+                    <label class="checkbox-label"><input id="chunkGridChk" type="checkbox" class="pixel-checkbox"/> Чанки</label>
+                    <label class="checkbox-label"><input id="microGridChk" type="checkbox" class="pixel-checkbox"/> Микро</label>
+                </div>
+                <h5 style="margin: 8px 0 4px;">Области</h5>
+                <div class="rowline" style="justify-content: flex-start; gap: 16px;">
+                    <label class="checkbox-label"><input id="villageAreasChk" type="checkbox" class="pixel-checkbox"/> Деревни</label>
+                    <label class="checkbox-label"><input id="allyLeashChk" type="checkbox" class="pixel-checkbox"/> Союзники</label>
+                </div>
+                <div class="rowline"><span class="chip">ИИ Врагов</span><select id="enemyAiModeSel" class="pixel-select" style="width:100%"><option value="neutral">Нейтральный</option><option value="faction_war">Война фракций</option><option value="player_aggro">Агрессия к игроку</option><option value="none">Отсутствие</option></select></div>
+                <div class="rowline"><span class="chip">Сложн.</span><input id="diffSlider" class="slider" type="range" min="-50" max="50" value="0"><span id="diffVal" style="width:32px;text-align:right;font-size:12px;opacity:.8">0</span></div>
+            </div>
+        </div>
+        <div class="cheat-section">
+            <h5 class="collapsible">Лимиты</h5>
+            <div class="cheat-content">
+                <div class="rowline"><span class="chip">Юниты</span><input id="squadLimitSlider" class="slider" type="range" min="0" max="32" value="12"><span id="squadLimitVal" style="width:32px;text-align:right;font-size:12px;opacity:.8">12</span></div>
+                <div class="rowline"><span class="chip">Контракты</span><input id="contractLimitSlider" class="slider" type="range" min="0" max="10" value="3"><span id="contractLimitVal" style="width:32px;text-align:right;font-size:12px;opacity:.8">3</span></div>
+                <div class="rowline"><span class="chip">Дальн. пуль</span><input id="bulletRangeSlider" class="slider" type="range" min="5" max="100" value="12"><span id="bulletRangeVal" style="width:32px;text-align:right;font-size:12px;opacity:.8">12</span></div>
+            </div>
+        </div>
+        <div class="cheat-section">
+            <h5 class="collapsible">Здоровье</h5>
+            <div class="cheat-content">
+                <div class="rowline"><span class="chip">HP Ком.</span><input id="commanderHpSlider" class="slider" type="range" min="4" max="100" value="16"><span id="commanderHpVal" style="width:32px;text-align:right;font-size:12px;opacity:.8">16</span></div>
+                <div class="rowline"><span class="chip">HP Юнита</span><input id="unitHpSlider" class="slider" type="range" min="1" max="20" value="4"><span id="unitHpVal" style="width:32px;text-align:right;font-size:12px;opacity:.8">4</span></div>
+            </div>
+        </div>
+        <div class="cheat-section">
+            <h5 class="collapsible">Скорость</h5>
+            <div class="cheat-content">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px;">
+                    <div class="rowline"><span class="chip">Игрок</span><input id="speedPlayer" class="slider" type="range" min="10" max="300" value="100"><span id="speedPlayerVal" class="val">100%</span></div>
+                    <div class="rowline"><span class="chip"><span class="pixel-emoji">🔫</span></span><input id="fireratePlayer" class="slider" type="range" min="10" max="500" value="100"><span id="fireratePlayerVal" class="val">100%</span></div>
+                    <div class="rowline"><span class="chip">Враги</span><input id="speedEnemy" class="slider" type="range" min="10" max="300" value="100"><span id="speedEnemyVal" class="val">100%</span></div>
+                    <div class="rowline"><span class="chip"><span class="pixel-emoji">🔫</span></span><input id="firerateEnemy" class="slider" type="range" min="10" max="500" value="100"><span id="firerateEnemyVal" class="val">100%</span></div>
+                    <div class="rowline"><span class="chip">Союзн.</span><input id="speedAlly" class="slider" type="range" min="10" max="300" value="100"><span id="speedAllyVal" class="val">100%</span></div>
+                    <div class="rowline"><span class="chip"><span class="pixel-emoji">🔫</span></span><input id="firerateAlly" class="slider" type="range" min="10" max="500" value="100"><span id="firerateAllyVal" class="val">100%</span></div>
+                    <div class="rowline"><span class="chip">Общая</span><input id="speedGlobal" class="slider" type="range" min="10" max="300" value="100"><span id="speedGlobalVal" class="val">100%</span></div>
+                    <div class="rowline"><span class="chip"><span class="pixel-emoji">🔫</span></span><input id="firerateGlobal" class="slider" type="range" min="10" max="500" value="100"><span id="firerateGlobalVal" class="val">100%</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<div id="minimap-panel" class="window-panel" style="left: 10px; bottom: 10px; width: 250px; height: 292px; display: none;">
+    <div class="window-header"><span class="window-title">Карта</span><span class="collapse-toggle expanded"></span></div>
+    <div class="window-content" style="overflow: hidden; padding: 8px 8px 0 8px;">
+        <div id="minimap-coords">
+            <input type="number" id="coordX" step="100" readonly>
+            <input type="number" id="coordY" step="100" readonly>
+            <span id="game-timer">00:00</span>
+        </div>
+        <div class="rowline" style="margin-bottom: 4px;"><label for="worldSeed">Сид:</label><input type="text" id="worldSeed" readonly /></div>
+        <canvas id="minimap-canvas" style="width:100%; height: calc(100% - 28px); border-radius: 4px; cursor: pointer;"></canvas>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<!-- Меню паузы -->
+<div id="pause-menu" class="window-panel" style="left: 50%; top: 50%; transform: translate(-50%, -50%); width: 450px; display: none;">
+    <div class="window-header"><span class="window-title" id="pause-menu-title">Гражданская война</span><span class="collapse-toggle expanded"></span></div>
+    <div class="window-content">
+
+        <!-- 1. ЭКРАН ГЛАВНОГО МЕНЮ -->
+        <div id="main-menu-screen" class="menu-screen">
+            <div class="column-buttons">
+                <button class="btn pixel-btn" data-screen="play-screen">Играть</button>
+                <button class="btn pixel-btn" disabled>Мультиплеер</button>
+                <button class="btn pixel-btn" id="show-saved-games-btn">Сохраненные игры</button>
+                <button class="btn pixel-btn" data-screen="settings-screen">Настройки</button>
+                <button class="btn pixel-btn" onclick="window.close()">Выйти</button>
+            </div>
+        </div>
+
+        <!-- 2. ЭКРАН ПАУЗЫ -->
+        <div id="in-game-pause-screen" class="menu-screen">
+            <div class="column-buttons">
+                <button id="resume-btn" class="btn pixel-btn">Продолжить</button>
+                <button id="save-btn" class="btn pixel-btn">Сохранить</button>
+                <button id="save-as-btn" class="btn pixel-btn">Сохранить как</button>
+                <button class="btn pixel-btn" data-screen="settings-screen">Настройки</button>
+                <button id="to-main-menu-btn" class="btn pixel-btn">В меню</button>
+            </div>
+        </div>
+
+        <!-- 3. ЭКРАН НАСТРОЕК НОВОЙ ИГРЫ ("Играть") -->
+        <div id="play-screen" class="menu-screen">
+            <div id="mainMenu" style="width: 100%;">
+                <input id="nameInput" placeholder="Имя командира" maxlength="24" style="width: calc(100% - 18px); text-align: center; margin-bottom: 10px;"/>
+                
+                <div id="new-game-tabs" style="display:flex; gap:4px; border-bottom: 1px solid var(--border); margin-bottom: 8px;">
+                    <button class="tabbtn pixel-btn active" data-tab="character-editor-tab">Персонаж</button>
+                    <button class="tabbtn pixel-btn" data-tab="faction-tab">Фракция</button>
+                    <button class="tabbtn pixel-btn" data-tab="gamemode-tab">Режим</button>
+                </div>
+
+                <!-- Tab Content: Character Editor -->
+                <div id="character-editor-tab" class="new-game-tab-content">
+                    <div class="character-editor-container">
+                        <div class="char-editor-preview">
+                            <div class="char-editor-player-preview" id="char-editor-player">
+                                <div class="char-editor-layer" id="char-editor-base"></div>
+                                <div class="char-editor-layer" id="char-editor-pants"></div>
+                                <div class="char-editor-layer" id="char-editor-topLayer"></div>
+                                <div class="char-editor-layer" id="char-editor-hairBack"></div>
+                                <div class="char-editor-layer" id="char-editor-hat"></div>
+                                <div class="char-editor-layer" id="char-editor-bangs"></div>
+                            </div>
+                            <div class="char-editor-world-grid"></div>
+                        </div>
+                        <div class="char-editor-controls">
+                            <!-- Controls will be dynamically generated by character_editor.js -->
+                            <div id="char-editor-options"></div>
+                            <div class="char-editor-buttons">
+                                <button id="char-editor-randomize-btn" class="btn pixel-btn">Случайно</button>
+                                <button id="char-editor-save-preset-btn" class="btn pixel-btn">Сохранить</button>
+                            </div>
+                             <div id="char-editor-presets-list" style="margin-top: 8px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Content: Faction -->
+                <div id="faction-tab" class="new-game-tab-content" style="display: none;">
+                    <div class="menu-section" style="margin-top: 0;">
+                        <h5 class="collapsible expanded">Фракция</h5>
+                        <div class="collapsible-content" style="display: block; padding-top: 8px;">
+                            <select id="factionSelect" class="pixel-select" style="width:100%; margin-bottom: 8px;">
+                                <option value="custom">Своя фракция</option>
+                            </select>
+                            
+                            <div id="factionDescription" style="font-size: 12px; opacity: 0.7; margin-top: 8px; min-height: 40px; text-align: center; margin-bottom: 8px;"></div>
+
+                            <div id="customFactionDiv" style="display: none; flex-direction: column; gap: 8px;">
+                                <p id="customFactionHeader" style="text-align: center; opacity: 0.7; font-size: 12px; margin: 0;">Создайте свою уникальную фракцию.</p>
+                                <input id="customFactionName" placeholder="Название" maxlength="20" style="width: calc(100% - 10px);"/>
+                                <textarea id="customFactionDescription" placeholder="Описание фракции..." rows="3" style="width: calc(100% - 10px);"></textarea>
+                                <div class="rowline" style="justify-content: center;">
+                                    <label>Цвет:</label>
+                                    <input id="customColorPicker" type="color" value="#3ddc97"/>
+                                    <label style="margin-left: 20px;">Иконка:</label>
+                                    <span id="customFactionIcon" class="pixel-emoji" style="font-size: 24px; cursor: pointer; margin-left: 10px;"></span>
+                                </div>
+                                <div class="rowline" style="gap: 10px; margin-top: 8px;">
+                                    <button id="deleteFactionBtn" class="btn pixel-btn" style="display:none; flex: 1;">Удалить</button>
+                                    <button id="saveFactionBtn" class="btn pixel-btn" style="flex: 2;">Сохранить</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Content: Game Mode -->
+                <div id="gamemode-tab" class="new-game-tab-content" style="display: none;">
+                    <div id="gameModeSelection" class="menu-section" style="margin-top: 0;">
+                        <h5 class="collapsible expanded">Режим игры</h5>
+                        <div class="collapsible-content" style="display: block; padding-top: 8px;">
+                            <div class="rowline" style="justify-content: center; gap: 10px;">
+                               <button id="modeFree" class="btn pixel-btn mode-btn" title="Свободный режим: читы, много денег, нейтральные враги."><span class="pixel-emoji">🛠️</span></button>
+                               <button id="modeJourney" class="btn pixel-btn mode-btn" title="Путешествие: война фракций, нет читов, стандартный инвентарь."><span class="pixel-emoji">🗺️</span></button>
+                               <button id="modeWar" class="btn pixel-btn mode-btn" title="Война: враги агрессивны к игроку, нет читов, стандартный инвентарь."><span class="pixel-emoji">⚔️</span></button>
+                               <button id="modeCustom" class="btn pixel-btn mode-btn" title="Свой режим: настройте все параметры игры самостоятельно."><span class="pixel-emoji">⚙️</span></button>
+                            </div>
+                            <div id="customModeControls" class="rowline" style="justify-content: center; gap: 10px; margin-top: 10px; display: none;">
+                               <button id="saveModeBtn" class="btn pixel-btn">Сохранить режим</button>
+                               <button id="deleteModeBtn" class="btn pixel-btn">Удалить режим</button>
+                            </div>
+                        </div>
+                   </div>
+                </div>
+            </div>
+            <div class="rowline" style="margin-top:15px;justify-content:center">
+              <button id="startNewGameBtn" class="btn pixel-btn" style="width: 100%;">В бой</button>
+            </div>
+            <button class="btn pixel-btn back-btn" data-screen="main-menu-screen">Назад</button>
+        </div>
+
+        <!-- 4. ЭКРАН НАСТРОЕК -->
+        <div id="settings-screen" class="menu-screen">
+            <div id="settingsMenu" style="margin-top:10px; display: flex; flex-direction: column; align-items: center; width: 100%;">
+                <div class="cheat-content" style="display: block;">
+                    <div id="tabs" style="display:flex;gap:8px;margin-bottom:8px">
+                      <button class="tabbtn pixel-btn active" data-tab="mech">Механики</button>
+                      <button class="tabbtn pixel-btn" data-tab="ui">Интерфейс</button>
+                      <button class="tabbtn pixel-btn" data-tab="gfx">Графика</button>
+                    </div>
+                    <div id="tab-mech" class="tabwrap">
+                        <div class="row"><label>Оставлять крестьян при смене базы</label><input id="leaveBaseChk" type="checkbox" class="pixel-checkbox" checked/></div>
+                        <div class="row" id="friendlyFireSetting" style="display: none;"><label>Попадание пуль в своих</label><input id="friendlyFireChk" type="checkbox" class="pixel-checkbox"/></div>
+                    </div>
+                    <div id="tab-ui" class="tabwrap" hidden>
+                      <div class="row"><label>Тема</label><select id="themeSel"><option value="dark">Тёмная</option><option value="light">Светлая</option></select></div>
+                      <h5>Звук</h5>
+                      <div class="row"><label>Музыка</label><input id="musicChk" type="checkbox" class="pixel-checkbox" checked/></div>
+                      <div class="row"><label>Звуковые эффекты</label><input id="sfxChk" type="checkbox" class="pixel-checkbox" checked/></div>
+                      <div class="row"><label>Скрыть чит-меню</label><input id="hideCheatsChk" type="checkbox" class="pixel-checkbox"/></div>
+                      <div class="row"><label>Скрыть мини-карту</label><input id="hideMinimapChk" type="checkbox" class="pixel-checkbox"/></div>
+                    </div>
+                    <div id="tab-gfx" class="tabwrap" hidden>
+                      <div class="row"><label>Цвет поля</label><input id="fieldColor" type="color" value="#13161c"/></div>
+                      <div class="row"><label>Цвет домов</label><input id="houseColor" type="color" value="#1b1f27"/></div>
+                      <div class="row"><label>Цвет лавок</label><input id="shopColorInput" type="color" value="#2a1f1f"/></div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn pixel-btn back-btn" data-screen="previous-screen">Назад</button>
+        </div>
+        
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<!-- Меню сохраненных игр -->
+<div id="saved-games-container" class="window-panel" style="left: 50%; top: 50%; transform: translate(-50%, -50%); width: 600px; display: none; z-index: 11;">
+    <div class="window-header"><span>Сохраненные игры</span></div>
+    <div class="window-content">
+        <div id="saved-games-list" style="max-height: 400px; overflow-y: auto;"></div>
+        <div class="rowline" style="margin-top: 15px; justify-content: center;">
+            <button id="close-saved-games" class="btn pixel-btn">Закрыть</button>
+        </div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<!-- Модальное окно "Сохранить как" -->
+<div id="save-as-modal" class="window-panel" style="left: 50%; top: 50%; transform: translate(-50%, -50%); width: 350px; display: none; z-index: 12;">
+    <div class="window-header"><span>Сохранить игру</span></div>
+    <div class="window-content">
+        <input id="save-name-input" placeholder="Введите имя сохранения" maxlength="30" style="width: calc(100% - 18px); text-align: center; margin-bottom: 10px;"/>
+        <div class="rowline" style="justify-content: space-around;">
+            <button id="save-game-confirm" class="btn pixel-btn">Сохранить</button>
+            <button id="save-game-cancel" class="btn pixel-btn">Отмена</button>
+        </div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<!-- Меню выбора иконки -->
+<div id="icon-picker-menu" class="window-panel" style="left: 50%; top: 50%; transform: translate(-50%, -50%); width: 400px; display: none; z-index: 100;">
+    <div class="window-header"><span>Выберите иконку</span></div>
+    <div class="window-content">
+        <div id="icon-picker-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; justify-items: center;">
+            <span class="pixel-emoji icon-picker-item">⚔️</span>
+            <span class="pixel-emoji icon-picker-item">🛡️</span>
+            <span class="pixel-emoji icon-picker-item">💣</span>
+            <span class="pixel-emoji icon-picker-item">🏹</span>
+            <span class="pixel-emoji icon-picker-item">🪓</span>
+            <span class="pixel-emoji icon-picker-item">📯</span>
+            <span class="pixel-emoji icon-picker-item">🏴</span>
+            <span class="pixel-emoji icon-picker-item">🌍</span>
+            <span class="pixel-emoji icon-picker-item">☦️</span>
+            <span class="pixel-emoji icon-picker-item">✡️</span>
+            <span class="pixel-emoji icon-picker-item">☪️</span>
+            <span class="pixel-emoji icon-picker-item">🕉️</span>
+            <span class="pixel-emoji icon-picker-item">☸️</span>
+            <span class="pixel-emoji icon-picker-item">⚛️</span>
+            <span class="pixel-emoji icon-picker-item">🐻</span>
+            <span class="pixel-emoji icon-picker-item">🦅</span>
+            <span class="pixel-emoji icon-picker-item">🐺</span>
+            <span class="pixel-emoji icon-picker-item">🐴</span>
+            <span class="pixel-emoji icon-picker-item">🐉</span>
+            <span class="pixel-emoji icon-picker-item">🐍</span>
+            <span class="pixel-emoji icon-picker-item">👻</span>
+        </div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<!-- Меню зданий -->
+<div id="houseMenu" class="window-panel" style="left: 10px; top: 10px; width: 300px; display: none;">
+    <div class="window-header"><span>Дом</span></div>
+    <div class="window-content">
+        <button id="makeBaseBtn" class="btn pixel-btn" style="width:100%">Сделать базой</button>
+        <div style="margin:8px 0 4px">Оставить юнитов: <span id="leaveCount">0</span></div>
+        <input id="leaveSlider" class="slider" type="range" min="0" max="0" value="0"/>
+        <div style="margin:8px 0 4px">Забрать юнитов: <span id="takeCount">0</span></div>
+        <input id="takeSlider" class="slider" type="range" min="0" max="0" value="0"/>
+        <div class="rowline" style="margin-top:8px">
+            <button id="leaveOkBtn" class="btn pixel-btn" style="flex:1">Оставить</button>
+            <button id="takeOkBtn" class="btn pixel-btn" style="flex:1">Забрать</button>
+        </div>
+        <div class="rowline" style="margin-top:8px">
+            <button id="exitHouseBtn" class="btn pixel-btn" style="flex:1">Выйти к двери</button>
+        </div>
+        <div style="font-size:12px;opacity:.8;margin-top:4px">Нажми пробел, чтобы закрыть</div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<div id="shopMenu" class="window-panel" style="left: 10px; top: 10px; width: 320px; display: none;">
+    <div class="window-header"><span>Лавка</span></div>
+    <div class="window-content">
+        <div id="shopInfo" style="margin-bottom:6px; font-size:13px; opacity:.9">—</div>
+        <div class="rowline" style="gap:4px">
+            <button id="buyUnitBtn" class="btn pixel-btn" style="flex:1">Купить юнита (250₽)</button>
+            <button id="sellLiveUnitBtn" class="btn pixel-btn" style="flex:1">Продать юнита (50₽)</button>
+        </div>
+        <div class="rowline" style="margin-top:4px; gap:4px">
+            <button id="sellUnitLootBtn" class="btn pixel-btn" style="flex:1">Продать крест юнита (100₽)</button>
+            <button id="sellCmdLootBtn" class="btn pixel-btn" style="flex:1">Продать крест ком. (500₽)</button>
+        </div>
+        <div style="margin-top:8px">Купить патроны (1₽ = 1 шт)</div>
+        <div class="rowline">
+            <input id="ammoRange" class="slider" type="range" min="0" max="0" value="0" />
+            <span id="ammoRangeVal" style="width:40px;text-align:right">0</span>
+        </div>
+        <div class="rowline" style="margin-top:8px">
+            <button id="buyAmmoBtn" class="btn pixel-btn" style="flex:1">Купить</button>
+            <button id="exitShopBtn" class="btn pixel-btn" style="flex:1">Выйти к двери</button>
+        </div>
+        <div style="font-size:12px;opacity:.8;margin-top:4px">
+            Нажми пробел, чтобы закрыть
+        </div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<!-- Меню кабака -->
+<div id="kabakMenu" class="window-panel" style="left: 50%; top: 50%; transform: translate(-50%, -50%); width: 400px; display: none;">
+    <div class="window-header"><span>Кабак</span></div>
+    <div class="window-content">
+        <div id="kabak-visitors">Посетители:</div>
+        <div id="kabak-list" style="margin-top: 8px; max-height: 200px; overflow-y: auto;"></div>
+        <div style="font-size:12px;opacity:.8;margin-top:4px">
+            Нажми пробел, чтобы закрыть
+        </div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<!-- Меню посетителей кабака (для альянсов) -->
+<div id="kabak-visitors-menu" class="window-panel" style="left: 20%; top: 20%; width: 300px; display: none;">
+    <div class="window-header"><span>Посетители</span></div>
+    <div class="window-content">
+        <h5>Нажмите, чтобы заключить контракт</h5>
+        <div id="kabak-visitors-list"></div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<!-- Меню предложения альянса -->
+<div id="alliance-proposal-menu" class="window-panel" style="left: 50%; top: 50%; transform: translate(-50%, -50%); width: 350px; display: none;">
+    <div class="window-header"><span>Предложение</span></div>
+    <div class="window-content" id="alliance-proposal-content">
+        <p id="alliance-proposal-text">-</p>
+        <div class="rowline" style="margin-top: 10px; justify-content: space-around;">
+            <button id="alliance-accept-btn" class="pixel-btn">✔️</button>
+            <button id="alliance-cancel-btn" class="pixel-btn">❌</button>
+        </div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+<!-- Карта мира -->
+<div id="world-map-container">
+    <canvas id="world-map-canvas"></canvas>
+</div>
+
+<!-- Подключение модулей -->
+<script src="js/constants.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/world.js"></script>
+<script src="js/alliance.js"></script>
+<script src="js/missions.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/input.js"></script>
+<script src="js/autotile_simple.js"></script>
+<script src="js/pre_render.js"></script>
+<script src="js/render.js"></script>
+<script src="js/game.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/character_editor.js"></script>
+<script src="js/sprite.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/main.js"></script>
+
+<div id="graphics-settings-window" class="window-panel" style="left: 50%; top: 50%; transform: translate(-50%, -50%); width: 350px; display: none;">
+    <div class="window-header"><span class="window-title">Настройки графики</span><span class="collapse-toggle expanded"></span></div>
+    <div class="window-content">
+        <div id="fps-display" style="font-size: 14px; margin-bottom: 10px;">FPS: 0</div>
+        <div class="rowline">
+            <span class="chip">Дальность прорисовки</span>
+            <input id="renderDistanceSlider" class="slider" type="range" min="1" max="5" value="3">
+            <span id="renderDistanceVal" style="width:32px;text-align:right;font-size:12px;opacity:.8">3</span>
+        </div>
+    </div>
+    <div class="resize-handle resize-handle-tl"></div><div class="resize-handle resize-handle-tr"></div><div class="resize-handle resize-handle-bl"></div><div class="resize-handle resize-handle-br"></div>
+</div>
+
+</body>
+</html>
