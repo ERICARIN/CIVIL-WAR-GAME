@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Autotile 4x4 (16x16)</title>
+  <style>
+    body {
+      background: #222;
+      color: #eee;
+      font-family: sans-serif;
+    }
+    canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #444;
+      cursor: pointer;
+      border: 1px solid #666;
+    }
+  </style>
+</head>
+<body>
+<canvas id="c" width="640" height="480"></canvas>
+
+<script>
+// ===============================
+// НАСТРОЙКИ
+// ===============================
+
+// размер одного тайла
+const TILE_SIZE = 16;
+
+// размер карты в тайлах
+const MAP_W = 30;
+const MAP_H = 20;
+
+// индексы тайлов в атласе 4x4, нумерация как у тебя:
+//
+//  1  2  3  4
+//  5  6  7  8
+//  9 10 11 12
+// 13 14 15 16
+//
+// В коде удобнее сделать 0-based, но будем хранить как 0..15,
+// а визуально это (n+1).
+function idx(col, row) {
+  // col, row: 0..3
+  return row * 4 + col; // 0..15
+}
+
+// ОСОБЫЕ ТАЙЛЫ ПО ТВОЕЙ СХЕМЕ (в 0-based):
+const TILE_1  = idx(0, 0); //  1
+const TILE_2  = idx(1, 0); //  2
+const TILE_3  = idx(2, 0); //  3
+const TILE_4  = idx(3, 0); //  4
+const TILE_5  = idx(0, 1); //  5
+const TILE_6  = idx(1, 1); //  6
+const TILE_7  = idx(2, 1); //  7
+const TILE_8  = idx(3, 1); //  8
+const TILE_9  = idx(0, 2); //  9
+const TILE_10 = idx(1, 2); // 10
+const TILE_11 = idx(2, 2); // 11
+const TILE_12 = idx(3, 2); // 12
+const TILE_13 = idx(0, 3); // 13
+const TILE_14 = idx(1, 3); // 14
+const TILE_15 = idx(2, 3); // 15
+const TILE_16 = idx(3, 3); // 16
+
+// одиночный тайл (нет соседей)
+const TILE_SINGLE = TILE_13;
+
+// ===============================
+// ЗАГРУЗКА ТАЙЛСЕТА
+// ===============================
+
+const atlas = new Image();
+// ПОМЕНЯЙ ИМЯ ФАЙЛА, ЕСЛИ НУЖНО:
+atlas.src = "tiles.png";
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+const map = [];
+for (let y = 0; y < MAP_H; y++) {
+  const row = [];
+  for (let x = 0; x < MAP_W; x++) {
+    row.push(null); // null = пусто
+  }
+  map.push(row);
+}
+
+// ===============================
+// ВСПОМОГАТЕЛЬНЫЕ
+// ===============================
+
+function inBounds(x, y) {
+  return x >= 0 && y >= 0 && x < MAP_W && y < MAP_H;
+}
+
+function hasTile(x, y) {
+  return inBounds(x, y) && map[y][x] !== null;
+}
+
+// маска 4-х сторонних соседей:
+// 1 = сверху
+// 2 = справа
+// 4 = снизу
+// 8 = слева
+function computeMask4(x, y) {
+  let m = 0;
+  if (hasTile(x, y - 1)) m |= 1; // up
+  if (hasTile(x + 1, y)) m |= 2; // right
+  if (hasTile(x, y + 1)) m |= 4; // down
+  if (hasTile(x - 1, y)) m |= 8; // left
+  return m;
+}
+
+// соответствие маски → тайл по твоему описанию
+function chooseTile(x, y) {
+  const m = computeMask4(x, y);
+
+  // нет соседей → стартовый/одиночный 13
+  if (m === 0) {
+    return TILE_SINGLE;
+  }
+
+  // вертикальная линия: 1,5,9
+  // только снизу сосед → верхняя грань (1)
+  if (m === 4) {
+    return TILE_1;
+  }
+  // только сверху сосед → нижняя грань (9)
+  if (m === 1) {
+    return TILE_9;
+  }
+  // сверху и снизу → вертикальная середина (5)
+  if (m === (1 | 4)) {
+    return TILE_5;
+  }
+
+  // горизонтальная линия: 14,15,16
+  // только справа → левый конец (14)
+  if (m === 2) {
+    return TILE_14;
+  }
+  // только слева → правый конец (16)
+  if (m === 8) {
+    return TILE_16;
+  }
+  // слева и справа → горизонтальная середина (15)
+  if (m === (2 | 8)) {
+    return TILE_15;
+  }
+
+  // прямоугольная "масса" вокруг центра 7:
+  // углы 2,4,10,12
+  if (m === (2 | 4)) {
+    return TILE_2; // верх-лево
+  }
+  if (m === (4 | 8)) {
+    return TILE_4; // верх-право
+  }
+  if (m === (1 | 2)) {
+    return TILE_10; // низ-лево
+  }
+  if (m === (1 | 8)) {
+    return TILE_12; // низ-право
+  }
+
+  // стороны 3,6,8,11
+  if (m === (2 | 4 | 8)) {
+    return TILE_3; // верхняя сторона
+  }
+  if (m === (1 | 2 | 4)) {
+    return TILE_6; // левая сторона
+  }
+  if (m === (1 | 4 | 8)) {
+    return TILE_8; // правая сторона
+  }
+  if (m === (1 | 2 | 8)) {
+    return TILE_11; // нижняя сторона
+  }
+
+  // центр квадрата — 7: окружён со всех сторон
+  if (m === (1 | 2 | 4 | 8)) {
+    return TILE_7;
+  }
+
+  // все сложные T-образные и кресты пока сводим к центру
+  return TILE_7;
+}
+
+// пересчитать тайл и его соседей
+function updateTileAndNeighbors(x, y) {
+  const coords = [
+    [x, y],
+    [x, y - 1],
+    [x + 1, y],
+    [x, y + 1],
+    [x - 1, y],
+  ];
+  for (const [cx, cy] of coords) {
+    if (!inBounds(cx, cy)) continue;
+    if (!hasTile(cx, cy)) continue;
+    map[cy][cx] = chooseTile(cx, cy);
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!atlas.complete) return;
+
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      const tile = map[y][x];
+      if (tile === null) continue;
+
+      const atlasCols = 4;
+      const sx = (tile % atlasCols) * TILE_SIZE;
+      const sy = Math.floor(tile / atlasCols) * TILE_SIZE;
+
+      ctx.drawImage(
+        atlas,
+        sx, sy, TILE_SIZE, TILE_SIZE,
+        x * TILE_SIZE, y * TILE_SIZE,
+        TILE_SIZE, TILE_SIZE
+      );
+    }
+  }
+}
+
+// клик мышью — поставить/убрать блок
+canvas.addEventListener("click", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = Math.floor((e.clientX - rect.left) / TILE_SIZE);
+  const my = Math.floor((e.clientY - rect.top) / TILE_SIZE);
+
+  if (!inBounds(mx, my)) return;
+
+  if (hasTile(mx, my)) {
+    // удалить тайл
+    map[my][mx] = null;
+
+    // пересчитать соседей вокруг
+    const coords = [
+      [mx, my - 1],
+      [mx + 1, my],
+      [mx, my + 1],
+      [mx - 1, my],
+    ];
+    for (const [cx, cy] of coords) {
+      if (!inBounds(cx, cy)) continue;
+      if (!hasTile(cx, cy)) continue;
+      map[cy][cx] = chooseTile(cx, cy);
+    }
+  } else {
+    // поставить тайл (начально как одиночный)
+    map[my][mx] = TILE_SINGLE;
+    updateTileAndNeighbors(mx, my);
+  }
+
+  draw();
+});
+
+atlas.onload = () => {
+  draw();
+};
+</script>
+</body>
+</html>
